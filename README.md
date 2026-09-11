@@ -1,10 +1,11 @@
-# StandUp
+# StandUp - 避免久坐
 
-一款简洁、原生的 macOS 菜单栏休息提醒工具。
+一款简洁、原生的 macOS 菜单栏休息提醒工具，帮你有效避免久坐。原本想直接找款免费的用，无奈翻遍 App Store 和 GitHub 都没找到合适的，自己动手写了。
 
 StandUp 通过周期性工作计时和全屏休息遮罩，提醒你暂时离开屏幕、起身活动、放松眼睛。除了常规的工作/休息循环，它还提供一次性闹钟模式，适合会议、喝水、服药或其他定时提醒场景。
 
 ![macOS](https://img.shields.io/badge/macOS-14.0%2B-black?logo=apple)
+![xcode](https://img.shields.io/badge/Xcode-16.2%2B-1575F9?logo=xcode&logoColor=white)
 ![Swift](https://img.shields.io/badge/Swift-5.0-orange?logo=swift)
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue)
 
@@ -60,7 +61,7 @@ StandUp 通过周期性工作计时和全屏休息遮罩，提醒你暂时离开
 
 - macOS 14.0 或更高版本
 - Apple Silicon 或 Intel Mac
-- 从源码构建需要 Xcode16+ 和 Swift 5
+- 从源码构建需要 Xcode16.2+ 和 Swift 5
 
 ## 从源码运行
 

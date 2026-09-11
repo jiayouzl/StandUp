@@ -9,7 +9,7 @@ StandUp 通过周期性工作计时和全屏休息遮罩，提醒你暂时离开
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue)
 
 ## 📖 如在macOS下无法运行，请执行以下步骤：
-> 系统设置 → 隐私与安全性 → 安全性 → 已阻止“Bitcoin Monitoring.app”以保护Mac → 仍要打开
+> 系统设置 → 隐私与安全性 → 安全性 → 已阻止“StandUp.app”以保护Mac → 仍要打开
 
 <p align="center">
   <img src="assets/iShot_15.20.29.png" alt="StandUp 菜单栏界面" width="420">
@@ -60,7 +60,7 @@ StandUp 通过周期性工作计时和全屏休息遮罩，提醒你暂时离开
 
 - macOS 14.0 或更高版本
 - Apple Silicon 或 Intel Mac
-- 从源码构建需要 Xcode 和 Swift 5
+- 从源码构建需要 Xcode16+ 和 Swift 5
 
 ## 从源码运行
 
@@ -93,7 +93,7 @@ xcodebuild -project StandUp.xcodeproj -scheme StandUp \
 
 ## 辅助功能权限
 
-“自动暂停媒体”功能需要使用 macOS 辅助功能权限，以发送系统媒体播放/暂停按键事件。首次启动时，StandUp 会提示你前往：
+“**自动暂停媒体**”功能需要使用 macOS 辅助功能权限，以发送系统媒体播放/暂停按键事件。首次启动时，StandUp 会提示你前往：
 
 `系统设置 → 隐私与安全性 → 辅助功能`
 
@@ -117,12 +117,8 @@ StandUp/
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request。提交代码前，请确保：
+欢迎提交 Issue。
 
-- Debug 与 Release 配置均可正常构建。
-- 不引入与当前修改无关的格式化或重构。
-- 涉及菜单栏、全屏遮罩或多显示器的修改已经手动验证。
-- 新增注释保持简洁，并使用中文。
 - 本项目基于 [@heidebaiyang](https://github.com/heidebaiyang/Stop-Working) 二次开发。
 
 ## 许可证

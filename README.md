@@ -15,7 +15,9 @@ StandUp 通过周期性工作计时和全屏休息遮罩，提醒你暂时离开
 <p align="center">
   <img src="assets/iShot_15.20.29.png" alt="StandUp 菜单栏界面" width="420">
 </p>
-
+<p align="center">
+  <img src="assets/IMG_6967@1920×1080.png" alt="StandUp 遮罩效果" width="1920">
+</p>
 
 ## 功能介绍
 

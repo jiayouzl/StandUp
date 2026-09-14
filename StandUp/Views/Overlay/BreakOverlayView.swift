@@ -3,6 +3,14 @@ import SwiftUI
 import AppKit
 
 struct BreakOverlayView: View {
+
+    private static let backgroundImageAsset = OverlayImageAssets.landscape
+    private static let clockFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
     
     let customReminderText: String
     let presetReminder: String
@@ -31,8 +39,8 @@ struct BreakOverlayView: View {
     @State private var appeared = false
     @FocusState private var acceptsKeyboardInput: Bool
     
-    // 共享一个 Timer，防止反复创建导致 RunLoop 堆积
-    static let sharedTickTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
+    // 共享一个 Timer，视图释放后订阅会自动取消。
+    static let sharedTickTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     // MARK: - Body
     
@@ -92,8 +100,7 @@ struct BreakOverlayView: View {
     
     private var backgroundImage: some View {
         Group {
-            if let path = Bundle.main.path(forResource: "background", ofType: "png"),
-               let nsImg = NSImage(contentsOfFile: path) {
+            if let nsImg = Self.backgroundImageAsset {
                 Image(nsImage: nsImg)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -273,10 +280,9 @@ struct BreakOverlayView: View {
     }
     
     private func updateClock() {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "HH:mm"
-        currentTimeString = f.string(from: Date())
+        let newValue = Self.clockFormatter.string(from: Date())
+        guard newValue != currentTimeString else { return }
+        currentTimeString = newValue
     }
 }
 
@@ -306,8 +312,7 @@ struct SecondaryBackgroundView: View {
 
     private var backgroundImage: some View {
         Group {
-            if let path = Bundle.main.path(forResource: resourceName, ofType: "png"),
-               let nsImg = NSImage(contentsOfFile: path) {
+            if let nsImg = OverlayImageAssets.image(named: resourceName) {
                 Image(nsImage: nsImg)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -316,4 +321,27 @@ struct SecondaryBackgroundView: View {
             }
         }
     }
+}
+
+private enum OverlayImageAssets {
+    static let landscape = loadBundledImage(named: "background")
+    static let portrait = loadBundledImage(named: "menu_bg")
+
+    static func image(named resourceName: String) -> NSImage? {
+        switch resourceName {
+        case "background":
+            return landscape
+        case "menu_bg":
+            return portrait
+        default:
+            return loadBundledImage(named: resourceName)
+        }
+    }
+}
+
+private func loadBundledImage(named resourceName: String) -> NSImage? {
+    guard let path = Bundle.main.path(forResource: resourceName, ofType: "png") else {
+        return nil
+    }
+    return NSImage(contentsOfFile: path)
 }

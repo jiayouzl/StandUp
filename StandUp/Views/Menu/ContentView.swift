@@ -7,8 +7,16 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
+
+    private static let menuBackgroundImage: NSImage? = {
+        guard let path = Bundle.main.path(forResource: "menu_bg", ofType: "png") else {
+            return nil
+        }
+        return NSImage(contentsOfFile: path)
+    }()
     
     @ObservedObject private var timer = TimerManager.shared
+    @State private var isAlarmMode = false
     
     @State private var editWorkMinutes: Int = 50
     @State private var editBreakMinutes: Int = 5
@@ -59,7 +67,7 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
-                Picker("", selection: $timer.isAlarmMode) {
+                Picker("", selection: $isAlarmMode) {
                     Text("计时器").tag(false)
                     Text("闹钟").tag(true)
                 }
@@ -73,7 +81,7 @@ struct ContentView: View {
             
             ScrollView {
                 VStack(spacing: 20) {
-                    if timer.isAlarmMode {
+                    if isAlarmMode {
                         alarmModeContent
                     } else {
                         timerModeContent
@@ -187,7 +195,13 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
         }
-        if timer.isRunning { statusRow.transition(.opacity.combined(with: .move(edge: .top))) }
+        if timer.isRunning {
+            CountdownStatusRow(
+                countdown: timer.countdownDisplay,
+                isOnBreak: timer.isOnBreak
+            )
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
     }
     
     // MARK: - 闹钟模式
@@ -361,34 +375,10 @@ struct ContentView: View {
     }
 
     
-    // MARK: - 状态行
-    
-    private var statusRow: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(timer.isOnBreak ? Color.orange : Color.green)
-                .frame(width: 8, height: 8)
-            Text(timer.isOnBreak ? "休息中" : "工作中")
-                .font(.subheadline).foregroundColor(.secondary)
-            Spacer()
-            HStack(spacing: 4) {
-                Image(systemName: "clock").font(.caption).foregroundColor(.secondary)
-                Text(timer.formattedTimeUntilBreak)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .contentTransition(.numericText())
-            }
-        }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.gray.opacity(0.2), lineWidth: 0.5))
-    }
-    
     // MARK: - 菜单背景
     
     private var menuBgImage: some View {
-        if let path = Bundle.main.path(forResource: "menu_bg", ofType: "png"),
-           let nsImg = NSImage(contentsOfFile: path) {
+        if let nsImg = Self.menuBackgroundImage {
             return AnyView(
                 Image(nsImage: nsImg)
                     .resizable()
@@ -398,6 +388,38 @@ struct ContentView: View {
             )
         }
         return AnyView(EmptyView())
+    }
+}
+
+// MARK: - 倒计时状态行
+
+private struct CountdownStatusRow: View {
+    @ObservedObject var countdown: CountdownDisplayState
+    let isOnBreak: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(isOnBreak ? Color.orange : Color.green)
+                .frame(width: 8, height: 8)
+            Text(isOnBreak ? "休息中" : "工作中")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Spacer()
+            HStack(spacing: 4) {
+                Image(systemName: "clock")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(countdown.formattedTime)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .contentTransition(.numericText())
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.gray.opacity(0.2), lineWidth: 0.5))
     }
 }
 

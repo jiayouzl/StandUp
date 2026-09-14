@@ -282,7 +282,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.10;
+				MARKETING_VERSION = 1.20;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mark.standup;
 				PRODUCT_NAME = StandUp;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -331,7 +331,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.10;
+				MARKETING_VERSION = 1.20;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mark.standup;
 				PRODUCT_NAME = StandUp;
 				PROVISIONING_PROFILE_SPECIFIER = "";

@@ -40,7 +40,7 @@ struct AlarmTimePicker: View {
                     )
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $showDate, arrowEdge: .bottom) { datePopover }
+            .managedPopover(isPresented: $showDate) { datePopover }
             
             // 小时
             Button(action: { showHour = true }) {
@@ -56,7 +56,7 @@ struct AlarmTimePicker: View {
                     )
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $showHour, arrowEdge: .bottom) {
+            .managedPopover(isPresented: $showHour) {
                 valuePopover(title: "小时", range: 0...23, current: hour24, format: "%02d", onSelect: { setHour($0) }, dismiss: { showHour = false })
             }
             
@@ -79,7 +79,7 @@ struct AlarmTimePicker: View {
                     )
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $showMinute, arrowEdge: .bottom) {
+            .managedPopover(isPresented: $showMinute) {
                 valuePopover(title: "分钟", range: 0...59, current: minute, format: "%02d", onSelect: { setMinute($0) }, dismiss: { showMinute = false })
             }
         }

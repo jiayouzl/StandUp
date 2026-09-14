@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 // MARK: - 时间选择器（点击弹出 + 键盘自定义）
 
@@ -40,7 +41,8 @@ struct TimeSelector: View {
             )
         }
         .buttonStyle(.plain)
-        .popover(isPresented: $showEditor, arrowEdge: .bottom) {
+        .disabled(disabled)
+        .managedPopover(isPresented: $showEditor) {
             TimeEditorPopover(
                 currentValue: $value,
                 presets: presets,
@@ -60,7 +62,7 @@ struct TimeEditorPopover: View {
     @Binding var isPresented: Bool
     
     @State private var customText = ""
-    @FocusState private var focused: Bool
+    @State private var inputField = DurationTextField()
     
     var body: some View {
         VStack(spacing: 14) {
@@ -86,7 +88,7 @@ struct TimeEditorPopover: View {
                     ForEach(presets, id: \.self) { preset in
                         Button {
                             currentValue = preset
-                            isPresented = false
+                            dismissEditor()
                         } label: {
                             Text("\(preset)")
                                 .font(.system(.body, design: .monospaced))
@@ -121,11 +123,10 @@ struct TimeEditorPopover: View {
                     .foregroundColor(.secondary)
                 
                 HStack(spacing: 8) {
-                    TextField("\(range.lowerBound)~\(range.upperBound)", text: $customText)
-                        .textFieldStyle(.roundedBorder)
+                    DurationInput(field: inputField, text: $customText,
+                                  placeholder: "\(range.lowerBound)~\(range.upperBound)",
+                                  onSubmit: submitCustom)
                         .frame(width: 80)
-                        .focused($focused)
-                        .onSubmit(submitCustom)
                     
                     Text("分钟")
                         .foregroundColor(.secondary)
@@ -146,16 +147,88 @@ struct TimeEditorPopover: View {
         .frame(width: 270)
         .onAppear {
             customText = "\(currentValue)"
-            // 延迟一下再聚焦，让弹窗先呈现
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                focused = true
-            }
+        }
+        .onDisappear {
+            inputField.finishEditing()
         }
     }
     
     private func submitCustom() {
         guard let val = Int(customText), range.contains(val) else { return }
         currentValue = val
+        dismissEditor()
+    }
+
+    private func dismissEditor() {
+        inputField.finishEditing()
         isPresented = false
+    }
+}
+
+// 原生输入框使用所属窗口的编辑器，避免 SwiftUI 编辑器在嵌套弹窗间残留。
+private final class DurationTextField: NSTextField {
+    func finishEditing() {
+        guard let window, let editor = currentEditor(), window.firstResponder === editor else { return }
+        window.makeFirstResponder(nil)
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if window !== newWindow {
+            finishEditing()
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+}
+
+private struct DurationInput: NSViewRepresentable {
+    let field: DurationTextField
+    @Binding var text: String
+    let placeholder: String
+    let onSubmit: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> DurationTextField {
+        field.isEditable = true
+        field.isSelectable = true
+        field.isBezeled = true
+        field.bezelStyle = .roundedBezel
+        field.font = .systemFont(ofSize: NSFont.systemFontSize)
+        field.stringValue = text
+        field.placeholderString = placeholder
+        field.delegate = context.coordinator
+        field.target = context.coordinator
+        field.action = #selector(Coordinator.submit)
+        (field.cell as? NSTextFieldCell)?.sendsActionOnEndEditing = false
+        return field
+    }
+
+    func updateNSView(_ field: DurationTextField, context: Context) {
+        context.coordinator.parent = self
+        field.placeholderString = placeholder
+        if field.stringValue != text {
+            field.stringValue = text
+        }
+    }
+
+    static func dismantleNSView(_ field: DurationTextField, coordinator: Coordinator) {
+        field.delegate = nil
+        field.target = nil
+        field.finishEditing()
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: DurationInput
+
+        init(_ parent: DurationInput) { self.parent = parent }
+
+        func controlTextDidChange(_ notification: Notification) {
+            parent.text = parent.field.stringValue
+        }
+
+        @objc func submit() {
+            parent.text = parent.field.stringValue
+            parent.onSubmit()
+        }
     }
 }

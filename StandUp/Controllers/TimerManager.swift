@@ -3,6 +3,22 @@ import Combine
 import AppKit
 import AVFoundation
 
+final class CountdownDisplayState: ObservableObject {
+    @Published private(set) var remainingSeconds = 0
+
+    var formattedTime: String {
+        let mins = remainingSeconds / 60
+        let secs = remainingSeconds % 60
+        return String(format: "%02d:%02d", mins, secs)
+    }
+
+    func update(remaining: TimeInterval) {
+        let seconds = max(0, Int(remaining))
+        guard seconds != remainingSeconds else { return }
+        remainingSeconds = seconds
+    }
+}
+
 // MARK: - TimerManager
 
 class TimerManager: ObservableObject {
@@ -35,17 +51,10 @@ class TimerManager: ObservableObject {
     
     @Published var isRunning = false
     @Published var isOnBreak = false
-    @Published var timeUntilBreak: TimeInterval = 0
-    
-    var formattedTimeUntilBreak: String {
-        let mins = Int(timeUntilBreak) / 60
-        let secs = Int(timeUntilBreak) % 60
-        return String(format: "%02d:%02d", mins, secs)
-    }
+    let countdownDisplay = CountdownDisplayState()
     
     // MARK: - Alarm Mode (多条闹钟)
     
-    @Published var isAlarmMode = false
     @Published var alarms: [AlarmItem] = []
     static let maxAlarms = 5
     
@@ -77,13 +86,13 @@ class TimerManager: ObservableObject {
         overlayManager.hide()
         isRunning = false
         isOnBreak = false
-        timeUntilBreak = 0
+        countdownDisplay.update(remaining: 0)
     }
     
     private func scheduleWorkTimer() {
         workTimer?.invalidate()
         workEndDate = Date().addingTimeInterval(workDuration)
-        timeUntilBreak = workDuration
+        countdownDisplay.update(remaining: workDuration)
         hasPlayedPreReminder = false
         
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] timer in
@@ -94,18 +103,19 @@ class TimerManager: ObservableObject {
             
             let remaining = endDate.timeIntervalSince(Date())
             if remaining <= 0 {
-                self.timeUntilBreak = 0
+                self.countdownDisplay.update(remaining: 0)
                 timer.invalidate()
                 self.workTimer = nil
                 self.showBreakOverlay()
             } else {
-                self.timeUntilBreak = remaining
+                self.countdownDisplay.update(remaining: remaining)
                 if self.isPreReminderEnabled, remaining <= 10, !self.hasPlayedPreReminder {
                     self.hasPlayedPreReminder = true
                     self.playPreReminder()
                 }
             }
         }
+        timer.tolerance = 0.1
         RunLoop.main.add(timer, forMode: .common)
         workTimer = timer
     }
@@ -232,6 +242,7 @@ class TimerManager: ObservableObject {
                 self.fireAlarm(for: alarm)
             }
         }
+        timer.tolerance = 0.2
         RunLoop.main.add(timer, forMode: .common)
         alarmCheckTimer = timer
     }

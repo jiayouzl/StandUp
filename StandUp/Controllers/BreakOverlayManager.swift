@@ -56,8 +56,16 @@ final class BreakOverlayManager {
     }
     
     func hide() {
-        for w in windows {
-            w.orderOut(nil)
+        let hiddenWindows = windows
+        windows.removeAll()
+        for window in hiddenWindows {
+            window.orderOut(nil)
+        }
+        // 按钮回调结束后再销毁承载它的窗口，避免事件处理中释放视图。
+        DispatchQueue.main.async {
+            for window in hiddenWindows {
+                window.close()
+            }
         }
     }
     
@@ -96,7 +104,7 @@ final class BreakOverlayManager {
         win.level = .screenSaver
         win.isOpaque = false
         win.backgroundColor = .clear
-        win.isReleasedWhenClosed = true
+        win.isReleasedWhenClosed = false
         win.ignoresMouseEvents = false
         win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         return win

@@ -12,7 +12,7 @@ private struct PopoverAnchor<Content: View>: NSViewRepresentable {
     @Binding var isPresented: Bool
     let content: () -> Content
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> PopoverCoordinator { PopoverCoordinator() }
 
     func makeNSView(context: Context) -> NSView { NSView() }
 
@@ -34,58 +34,58 @@ private struct PopoverAnchor<Content: View>: NSViewRepresentable {
         }
     }
 
-    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+    static func dismantleNSView(_ view: NSView, coordinator: PopoverCoordinator) {
         coordinator.revision += 1
         coordinator.presentation = nil
         coordinator.close()
     }
+}
 
-    final class Coordinator: NSObject, NSPopoverDelegate {
-        var presentation: Binding<Bool>?
-        var revision = 0
-        private var popover: NSPopover?
+private final class PopoverCoordinator: NSObject, NSPopoverDelegate {
+    var presentation: Binding<Bool>?
+    var revision = 0
+    private var popover: NSPopover?
 
-        func show(content: Content, from anchor: NSView) {
-            guard popover == nil else { return }
-            PopoverSession.closeActive?()
-            // 子窗口建立前，父窗口必须先结束自己的编辑会话。
-            guard anchor.window?.makeFirstResponder(nil) == true else {
-                presentation?.wrappedValue = false
-                return
-            }
-            let popover = NSPopover()
-            popover.animates = false
-            popover.behavior = .transient
-            popover.delegate = self
-            popover.contentViewController = NSHostingController(rootView: content)
-            self.popover = popover
-            PopoverSession.owner = self
-            PopoverSession.closeActive = { [weak self] in self?.close() }
-            popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxY)
-        }
-
-        func close() {
-            popover?.performClose(nil)
-        }
-
-        func popoverWillClose(_ notification: Notification) {
-            // 必须在 AppKit 拆除父子窗口关系之前清理，onDisappear 已经太晚。
-            if let window = popover?.contentViewController?.view.window {
-                window.makeFirstResponder(nil)
-                window.endEditing(for: nil)
-            }
-        }
-
-        func popoverDidClose(_ notification: Notification) {
-            popover?.delegate = nil
-            popover = nil
-            if PopoverSession.owner === self {
-                PopoverSession.owner = nil
-                PopoverSession.closeActive = nil
-            }
-            revision += 1
+    func show<Content: View>(content: Content, from anchor: NSView) {
+        guard popover == nil else { return }
+        PopoverSession.closeActive?()
+        // 子窗口建立前，父窗口必须先结束自己的编辑会话。
+        guard anchor.window?.makeFirstResponder(nil) == true else {
             presentation?.wrappedValue = false
+            return
         }
+        let popover = NSPopover()
+        popover.animates = false
+        popover.behavior = .transient
+        popover.delegate = self
+        popover.contentViewController = NSHostingController(rootView: content)
+        self.popover = popover
+        PopoverSession.owner = self
+        PopoverSession.closeActive = { [weak self] in self?.close() }
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxY)
+    }
+
+    func close() {
+        popover?.performClose(nil)
+    }
+
+    func popoverWillClose(_ notification: Notification) {
+        // 必须在 AppKit 拆除父子窗口关系之前清理，onDisappear 已经太晚。
+        if let window = popover?.contentViewController?.view.window {
+            window.makeFirstResponder(nil)
+            window.endEditing(for: nil)
+        }
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        popover?.delegate = nil
+        popover = nil
+        if PopoverSession.owner === self {
+            PopoverSession.owner = nil
+            PopoverSession.closeActive = nil
+        }
+        revision += 1
+        presentation?.wrappedValue = false
     }
 }
 

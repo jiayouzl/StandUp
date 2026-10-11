@@ -127,7 +127,7 @@ struct ContentView: View {
     @ViewBuilder
     private var timerModeContent: some View {
         SettingsRow(icon: "timer", iconColor: .blue, title: "工作间隔") {
-            TimeSelector(value: $editWorkMinutes, presets: [25, 30, 35, 40], range: 1...240, disabled: timer.isRunning)
+            TimeSelector(value: $editWorkMinutes, presets: [15, 25, 30, 35, 40, 45, 50, 60], range: 1...240, defaultCustomValue: 10, disabled: timer.isRunning)
         }
         Divider()
         SettingsRow(icon: "figure.cooldown", iconColor: .indigo, title: "休息活动") {

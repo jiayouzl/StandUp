@@ -12,6 +12,7 @@ struct TimeSelector: View {
     @Binding var value: Int
     let presets: [Int]
     let range: ClosedRange<Int>
+    var defaultCustomValue: Int? = nil
     var disabled: Bool = false
     
     @State private var showEditor = false
@@ -47,6 +48,7 @@ struct TimeSelector: View {
                 currentValue: $value,
                 presets: presets,
                 range: range,
+                defaultCustomValue: defaultCustomValue,
                 isPresented: $showEditor
             )
         }
@@ -59,6 +61,7 @@ struct TimeEditorPopover: View {
     @Binding var currentValue: Int
     let presets: [Int]
     let range: ClosedRange<Int>
+    var defaultCustomValue: Int? = nil
     @Binding var isPresented: Bool
     
     @State private var customText = ""
@@ -84,7 +87,7 @@ struct TimeEditorPopover: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
-                HStack(spacing: 8) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: min(4, max(1, presets.count))), spacing: 8) {
                     ForEach(presets, id: \.self) { preset in
                         Button {
                             currentValue = preset
@@ -146,7 +149,7 @@ struct TimeEditorPopover: View {
         .padding()
         .frame(width: 270)
         .onAppear {
-            customText = "\(currentValue)"
+            customText = "\(defaultCustomValue ?? currentValue)"
         }
         .onDisappear {
             inputField.finishEditing()

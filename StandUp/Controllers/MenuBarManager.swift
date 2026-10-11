@@ -24,10 +24,10 @@ final class MenuBarManager: NSObject {
 
         if let button = statusItem.button {
             // 优先使用 SF Symbol，加载失败时用文字兜底
-            if let image = NSImage(systemSymbolName: "macbook", accessibilityDescription: nil) {
+            if let image = NSImage(systemSymbolName: "timer", accessibilityDescription: nil) {
                 button.image = image
             } else {
-                button.title = "💻"
+                button.title = "⏱"
                 button.font = NSFont.systemFont(ofSize: 14)
             }
             button.action = #selector(togglePopover)

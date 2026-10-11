@@ -5,25 +5,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static var allowTerminate = false
 
     private var menuBarManager: MenuBarManager!
-    private var keepAliveWindow: NSWindow!
     private var autoStartTimer: Timer? // 必须保存引用，否则 ARC 会释放
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         menuBarManager = MenuBarManager()
-
-        // 使用屏幕外的透明窗口维持菜单栏应用生命周期
-        let keepAlive = NSWindow(
-            contentRect: NSRect(x: -5000, y: -5000, width: 1, height: 1),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        keepAlive.level = .normal
-        keepAlive.isOpaque = false
-        keepAlive.backgroundColor = .clear
-        keepAlive.ignoresMouseEvents = true
-        keepAlive.orderFront(nil)
-        keepAliveWindow = keepAlive
 
         requestAccessibilityPermissionIfNeeded()
 
@@ -79,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        // 菜单栏应用在没有窗口时继续运行，无需额外创建保活窗口。
         false
     }
 }

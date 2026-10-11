@@ -5,12 +5,10 @@ struct StandUpApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
-        WindowGroup {
-            Color.clear
-                .frame(width: 0, height: 0)
+        // 菜单栏界面由 AppDelegate 管理，启动时不创建参与调度中心的空窗口。
+        Settings {
+            EmptyView()
         }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) { }
         }

@@ -1,3 +1,4 @@
+// 将 AppKit 毛玻璃效果封装为可在 SwiftUI 中使用的视图。
 import AppKit
 import SwiftUI
 

@@ -1,3 +1,4 @@
+// 创建菜单栏状态项，并管理主界面弹出窗口的显示与尺寸。
 import AppKit
 import SwiftUI
 

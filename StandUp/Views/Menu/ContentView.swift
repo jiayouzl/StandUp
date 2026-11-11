@@ -2,6 +2,7 @@
 //  ContentView.swift
 //  StandUp
 //
+// 呈现菜单栏主界面，供用户控制计时、设置提醒和管理闹钟。
 
 import SwiftUI
 import AppKit

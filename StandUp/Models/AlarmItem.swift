@@ -1,3 +1,4 @@
+// 定义可持久化的闹钟数据，并提供时间和日期的本地化显示格式。
 import Foundation
 
 struct AlarmItem: Identifiable, Codable {

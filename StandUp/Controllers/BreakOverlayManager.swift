@@ -2,6 +2,7 @@
 //  BreakOverlayManager.swift
 //  StandUp
 //
+// 管理休息和闹钟提醒窗口，并将提醒铺展到当前连接的所有显示器。
 
 import AppKit
 import SwiftUI

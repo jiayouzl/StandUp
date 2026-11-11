@@ -1,3 +1,4 @@
+// 呈现休息或闹钟全屏提醒，显示倒计时、提示内容并处理用户交互。
 import Combine
 import SwiftUI
 import AppKit

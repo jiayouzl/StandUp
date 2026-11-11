@@ -2,6 +2,7 @@
 //  TimeSelector.swift
 //  StandUp
 //
+// 提供支持预设选项和键盘自定义输入的分钟数选择控件。
 
 import SwiftUI
 import AppKit

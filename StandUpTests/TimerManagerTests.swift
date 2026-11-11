@@ -1,3 +1,4 @@
+// 验证计时器周期衔接及工作提醒等待闹钟确认等控制器行为。
 import Foundation
 import XCTest
 

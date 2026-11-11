@@ -1,3 +1,4 @@
+// 封装由 AppKit 管理的 SwiftUI 弹出窗口，协调显示、关闭和视图生命周期。
 import AppKit
 import SwiftUI
 

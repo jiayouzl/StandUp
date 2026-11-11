@@ -1,3 +1,4 @@
+// 处理应用启动与退出，并初始化菜单栏控制器和必要的系统权限流程。
 import AppKit
 import ApplicationServices
 

@@ -1,3 +1,4 @@
+// 管理工作与休息倒计时、闹钟调度、用户设置持久化及提醒触发。
 import Foundation
 import Combine
 import AppKit

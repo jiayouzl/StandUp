@@ -100,7 +100,7 @@ struct ContentView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.caption)
-                    Text("关闭App")
+                    Text("退出")
                         .font(.caption)
                 }
                 .foregroundColor(.secondary)

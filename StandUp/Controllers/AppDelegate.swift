@@ -12,13 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         requestAccessibilityPermissionIfNeeded()
 
-        // 命令行参数比 UserDefaults 更适合处理毛玻璃结束后的自动重启
-        if CommandLine.arguments.contains("-autoRestart") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                TimerManager.shared.start()
-            }
-        }
-
         // 启动后自动开始，便于当前产品流程直接进入工作计时
         let timer = Timer(timeInterval: 2, repeats: false) { _ in
             TimerManager.shared.start()

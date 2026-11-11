@@ -27,6 +27,7 @@ struct ContentView: View {
     
     private var alarmCount: Int { timer.alarms.count }
     private var alarmsFull: Bool { alarmCount >= TimerManager.maxAlarms }
+    private var alarmFormDisabled: Bool { alarmsFull && editingAlarmId == nil }
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
     }
@@ -92,7 +93,6 @@ struct ContentView: View {
             
             // ── 退出 ──
             Button {
-                UserDefaults.standard.removeObject(forKey: "autoRestart")
                 AppDelegate.allowTerminate = true
                 NSApplication.shared.terminate(nil)
             } label: {
@@ -214,7 +214,7 @@ struct ContentView: View {
                 .font(.subheadline).foregroundColor(.secondary)
             HStack {
                 Spacer()
-                AlarmTimePicker(alarmTime: $newAlarmTime, disabled: alarmsFull)
+                AlarmTimePicker(alarmTime: $newAlarmTime, disabled: alarmFormDisabled)
                 Spacer()
             }
             .padding(.vertical, 4)
@@ -233,7 +233,7 @@ struct ContentView: View {
                 .padding(6)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.08)))
                 .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.gray.opacity(0.2), lineWidth: 0.5))
-                .disabled(alarmsFull)
+                .disabled(alarmFormDisabled)
         }
         
         Divider()

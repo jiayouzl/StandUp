@@ -11,7 +11,17 @@ private final class BreakOverlayWindow: NSWindow {
     override var canBecomeMain: Bool { true }
 }
 
-final class BreakOverlayManager {
+@MainActor
+protocol BreakOverlayPresenting {
+    func show(customReminderText: String,
+              presetReminder: String,
+              breakDuration: TimeInterval,
+              onDismiss: @escaping () -> Void,
+              displayMode: OverlayDisplayMode)
+    func hide()
+}
+
+final class BreakOverlayManager: BreakOverlayPresenting {
     
     /// 窗口组。每次 show 时都会按“当前屏幕布局”重新对齐，
     /// 保证任何一块新增/拔掉的屏幕（包括副屏/平板）都能被覆盖。
@@ -21,7 +31,7 @@ final class BreakOverlayManager {
               presetReminder: String,
               breakDuration: TimeInterval,
               onDismiss: @escaping () -> Void,
-              displayMode: OverlayDisplayMode = .breakReminder) {
+              displayMode: OverlayDisplayMode) {
         
         // 按当前屏幕布局重建窗口，确保主屏 + 所有副屏都有对应窗口
         rebuildWindows()
@@ -112,8 +122,8 @@ final class BreakOverlayManager {
 
     /// 副屏全部显示后再激活主窗口，避免后续窗口排序抢走键盘焦点。
     private func focusPrimaryWindow(_ window: NSWindow) {
-        let focus = { [weak window] in
-            guard let window else { return }
+        let focus = { [weak self, weak window] in
+            guard let self, let window, self.windows.contains(where: { $0 === window }) else { return }
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
             window.makeMain()

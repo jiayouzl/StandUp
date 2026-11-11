@@ -6,14 +6,33 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A71000000000000000000011 /* TimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000001 /* TimerManager.swift */; };
+		A71000000000000000000012 /* BreakOverlayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000002 /* BreakOverlayManager.swift */; };
+		A71000000000000000000013 /* AlarmItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000003 /* AlarmItem.swift */; };
+		A71000000000000000000014 /* OverlayDisplayMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000004 /* OverlayDisplayMode.swift */; };
+		A71000000000000000000015 /* BreakOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71000000000000000000005 /* BreakOverlayView.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		0BF9A8D2300FE41D000133B6 /* StandUp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StandUp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A71000000000000000000001 /* TimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TimerManager.swift; path = StandUp/Controllers/TimerManager.swift; sourceTree = SOURCE_ROOT; };
+		A71000000000000000000002 /* BreakOverlayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BreakOverlayManager.swift; path = StandUp/Controllers/BreakOverlayManager.swift; sourceTree = SOURCE_ROOT; };
+		A71000000000000000000003 /* AlarmItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AlarmItem.swift; path = StandUp/Models/AlarmItem.swift; sourceTree = SOURCE_ROOT; };
+		A71000000000000000000004 /* OverlayDisplayMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OverlayDisplayMode.swift; path = StandUp/Models/OverlayDisplayMode.swift; sourceTree = SOURCE_ROOT; };
+		A71000000000000000000005 /* BreakOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BreakOverlayView.swift; path = StandUp/Views/Overlay/BreakOverlayView.swift; sourceTree = SOURCE_ROOT; };
+		A71000000000000000000006 /* StandUpTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = StandUpTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0BF9A8D4300FE41D000133B6 /* StandUp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = StandUp;
+			sourceTree = "<group>";
+		};
+		A71000000000000000000007 /* StandUpTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = StandUpTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -33,6 +52,8 @@
 			isa = PBXGroup;
 			children = (
 				0BF9A8D4300FE41D000133B6 /* StandUp */,
+				A71000000000000000000007 /* StandUpTests */,
+				A71000000000000000000008 /* Sources Under Test */,
 				0BF9A8D3300FE41D000133B6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,8 +62,21 @@
 			isa = PBXGroup;
 			children = (
 				0BF9A8D2300FE41D000133B6 /* StandUp.app */,
+				A71000000000000000000006 /* StandUpTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A71000000000000000000008 /* Sources Under Test */ = {
+			isa = PBXGroup;
+			children = (
+				A71000000000000000000001 /* TimerManager.swift */,
+				A71000000000000000000002 /* BreakOverlayManager.swift */,
+				A71000000000000000000003 /* AlarmItem.swift */,
+				A71000000000000000000004 /* OverlayDisplayMode.swift */,
+				A71000000000000000000005 /* BreakOverlayView.swift */,
+			);
+			name = "Sources Under Test";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -69,6 +103,24 @@
 			productName = StandUp;
 			productReference = 0BF9A8D2300FE41D000133B6 /* StandUp.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A71000000000000000000009 /* StandUpTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7100000000000000000000B /* Build configuration list for PBXNativeTarget "StandUpTests" */;
+			buildPhases = (
+				A7100000000000000000000A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A71000000000000000000007 /* StandUpTests */,
+			);
+			name = StandUpTests;
+			productName = StandUpTests;
+			productReference = A71000000000000000000006 /* StandUpTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -101,6 +153,7 @@
 			projectRoot = "";
 			targets = (
 				0BF9A8D1300FE41D000133B6 /* StandUp */,
+				A71000000000000000000009 /* StandUpTests */,
 			);
 		};
 /* End PBXProject section */
@@ -120,6 +173,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7100000000000000000000A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A71000000000000000000011 /* TimerManager.swift in Sources */,
+				A71000000000000000000012 /* BreakOverlayManager.swift in Sources */,
+				A71000000000000000000013 /* AlarmItem.swift in Sources */,
+				A71000000000000000000014 /* OverlayDisplayMode.swift in Sources */,
+				A71000000000000000000015 /* BreakOverlayView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -287,7 +352,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = "$(RECOMMENDED_MACOSX_DEPLOYMENT_TARGET)";
-				MARKETING_VERSION = 1.23;
+				MARKETING_VERSION = 1.30;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mark.standup;
 				PRODUCT_NAME = StandUp;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -338,7 +403,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = "$(RECOMMENDED_MACOSX_DEPLOYMENT_TARGET)";
-				MARKETING_VERSION = 1.23;
+				MARKETING_VERSION = 1.30;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mark.standup;
 				PRODUCT_NAME = StandUp;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -348,6 +413,30 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A7100000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = "$(RECOMMENDED_MACOSX_DEPLOYMENT_TARGET)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.mark.standup.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A7100000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = "$(RECOMMENDED_MACOSX_DEPLOYMENT_TARGET)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.mark.standup.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -369,6 +458,15 @@
 			buildConfigurations = (
 				0BF9A8DE300FE41D000133B6 /* Debug */,
 				0BF9A8DF300FE41D000133B6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A7100000000000000000000B /* Build configuration list for PBXNativeTarget "StandUpTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A7100000000000000000000C /* Debug */,
+				A7100000000000000000000D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

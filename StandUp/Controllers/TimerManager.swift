@@ -23,8 +23,16 @@ final class CountdownDisplayState: ObservableObject {
 
 class TimerManager: ObservableObject {
     
-    static let shared = TimerManager()
-    private init() { loadSettings() }
+    static let shared = TimerManager(defaults: .standard, overlayManager: BreakOverlayManager())
+
+    private let defaults: UserDefaults
+    private let overlayManager: any BreakOverlayPresenting
+
+    init(defaults: UserDefaults, overlayManager: any BreakOverlayPresenting) {
+        self.defaults = defaults
+        self.overlayManager = overlayManager
+        loadSettings()
+    }
     
     @Published var workDuration: TimeInterval = 50 * 60
     @Published var breakActivityDuration: TimeInterval = 5 * 60
@@ -43,19 +51,19 @@ class TimerManager: ObservableObject {
     @Published var reminderText: String = ""
     @Published var currentPresetReminder: String = presetReminders[0]
     @Published var isPreReminderEnabled = false {
-        didSet { UserDefaults.standard.set(isPreReminderEnabled, forKey: "isPreReminderEnabled") }
+        didSet { defaults.set(isPreReminderEnabled, forKey: "isPreReminderEnabled") }
     }
     @Published var isAutoPauseEnabled = false {
-        didSet { UserDefaults.standard.set(isAutoPauseEnabled, forKey: "isAutoPauseEnabled") }
+        didSet { defaults.set(isAutoPauseEnabled, forKey: "isAutoPauseEnabled") }
     }
     
-    @Published var isRunning = false
-    @Published var isOnBreak = false
+    @Published private(set) var isRunning = false
+    @Published private(set) var isOnBreak = false
     let countdownDisplay = CountdownDisplayState()
     
     // MARK: - Alarm Mode (多条闹钟)
     
-    @Published var alarms: [AlarmItem] = []
+    @Published private(set) var alarms: [AlarmItem] = []
     static let maxAlarms = 5
     
     private var workTimer: Timer?
@@ -64,13 +72,12 @@ class TimerManager: ObservableObject {
     private var promptPlayer: AVAudioPlayer?
     private var hasPlayedPreReminder = false
     private var shouldResumeMediaAfterBreak = false
-    private let overlayManager = BreakOverlayManager()
+    private var presentedAlarmID: UUID?
     
     func start() {
-        currentPresetReminder = Self.presetReminders.randomElement()!
         stop()
+        currentPresetReminder = Self.presetReminders.randomElement()!
         isRunning = true
-        isOnBreak = false
         scheduleWorkTimer()
         saveSettings()
     }
@@ -83,7 +90,7 @@ class TimerManager: ObservableObject {
         promptPlayer = nil
         hasPlayedPreReminder = false
         resumeMediaPlaybackIfNeeded()
-        overlayManager.hide()
+        if isOnBreak { overlayManager.hide() }
         isRunning = false
         isOnBreak = false
         countdownDisplay.update(remaining: 0)
@@ -104,8 +111,11 @@ class TimerManager: ObservableObject {
             let remaining = endDate.timeIntervalSince(Date())
             if remaining <= 0 {
                 self.countdownDisplay.update(remaining: 0)
+                // 闹钟确认后再显示到期的休息提醒。
+                guard self.presentedAlarmID == nil else { return }
                 timer.invalidate()
                 self.workTimer = nil
+                self.workEndDate = nil
                 self.showBreakOverlay()
             } else {
                 self.countdownDisplay.update(remaining: remaining)
@@ -127,25 +137,14 @@ class TimerManager: ObservableObject {
             sendPlayPauseMediaKey()
             shouldResumeMediaAfterBreak = true
         }
-        NSApp.activate(ignoringOtherApps: true)  // open -j 启动的 App 是失焦的，必须激活才能显示 overlay
         overlayManager.show(
             customReminderText: reminderText, presetReminder: currentPresetReminder,
             breakDuration: breakActivityDuration,
             onDismiss: { [weak self] in
-                guard let self = self else { return }
-                guard self.isOnBreak else { return }
-                self.resumeMediaPlaybackIfNeeded()
-                self.overlayManager.hide()
-                self.isOnBreak = false
-                // 先启动 bash（孤儿进程，App 退出后继续跑）
-                let task = Process()
-                task.executableURL = URL(fileURLWithPath: "/bin/bash")
-                task.arguments = ["-c", "sleep 0.5 && open -j '\(Bundle.main.bundlePath)' --args -autoRestart"]
-                try? task.run()
-                // 再退出当前 App（bash 已是孤儿进程，不受影响）
-                AppDelegate.allowTerminate = true
-                NSApplication.shared.terminate(nil)
-            }
+                guard let self, self.isOnBreak else { return }
+                self.start()
+            },
+            displayMode: .breakReminder
         )
     }
 
@@ -229,16 +228,10 @@ class TimerManager: ObservableObject {
         
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] timer in
             guard let self = self else { timer.invalidate(); return }
-            guard !self.isOnBreak else { return }
+            guard !self.isOnBreak, self.presentedAlarmID == nil else { return }
             
             let now = Date()
             if let alarm = self.alarms.first(where: { now >= $0.time }) {
-                self.alarms.removeAll(where: { $0.id == alarm.id })
-                self.saveSettings()
-                if self.alarms.isEmpty {
-                    timer.invalidate()
-                    self.alarmCheckTimer = nil
-                }
                 self.fireAlarm(for: alarm)
             }
         }
@@ -248,16 +241,16 @@ class TimerManager: ObservableObject {
     }
     
     private func fireAlarm(for alarm: AlarmItem) {
-        currentPresetReminder = Self.presetReminders.randomElement()!
-        isOnBreak = true
+        presentedAlarmID = alarm.id
         overlayManager.show(
             customReminderText: alarm.reminderText,
-            presetReminder: currentPresetReminder,
+            presetReminder: Self.presetReminders.randomElement()!,
             breakDuration: breakActivityDuration,
             onDismiss: { [weak self] in
-                guard let self = self else { return }
+                guard let self, self.presentedAlarmID == alarm.id else { return }
                 self.overlayManager.hide()
-                self.isOnBreak = false
+                self.presentedAlarmID = nil
+                self.removeAlarm(id: alarm.id)
             },
             displayMode: .alarm
         )
@@ -266,7 +259,7 @@ class TimerManager: ObservableObject {
     // MARK: - Settings
     
     private func loadSettings() {
-        let ud = UserDefaults.standard
+        let ud = defaults
         let work = ud.double(forKey: "workDuration")
         if work > 0 { workDuration = work }
         let brk = ud.double(forKey: "breakActivityDuration")
@@ -286,7 +279,7 @@ class TimerManager: ObservableObject {
     }
     
     private func saveSettings() {
-        let ud = UserDefaults.standard
+        let ud = defaults
         ud.set(workDuration, forKey: "workDuration")
         ud.set(breakActivityDuration, forKey: "breakActivityDuration")
         ud.set(reminderText, forKey: "reminderText")

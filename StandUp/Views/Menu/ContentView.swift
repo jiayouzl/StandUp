@@ -150,16 +150,24 @@ struct ContentView: View {
         Divider()
         VStack(alignment: .leading, spacing: 10) {
             Toggle(isOn: $timer.isPreReminderEnabled) {
-                Label("提前提醒 - 进入遮挡页前10秒铃声提醒", systemImage: "speaker.wave.2.fill")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .frame(width: 20)
+                    Text("提前提醒 - 进入遮挡页前10秒铃声提醒")
+                }
+                .font(.subheadline)
+                .foregroundColor(.secondary)
             }
             .toggleStyle(.checkbox)
 
             Toggle(isOn: $timer.isAutoPauseEnabled) {
-                Label("自动暂停 - 进入遮挡页后暂停当前媒体播放", systemImage: "pause.circle.fill")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    Image(systemName: "pause.circle.fill")
+                        .frame(width: 20)
+                    Text("自动暂停 - 进入遮挡页后暂停当前媒体播放")
+                }
+                .font(.subheadline)
+                .foregroundColor(.secondary)
             }
             .toggleStyle(.checkbox)
         }

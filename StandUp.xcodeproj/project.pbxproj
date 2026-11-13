@@ -343,7 +343,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = StandUp;
+				INFOPLIST_KEY_CFBundleDisplayName = "StandUp Debug";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright© 2026–2027 Mark International Inc. All rights reserved.";
@@ -352,7 +352,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.31;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mark.standup;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mark.standup.debug;
 				PRODUCT_NAME = StandUp;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;

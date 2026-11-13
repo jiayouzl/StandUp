@@ -110,6 +110,8 @@ xcodebuild -project StandUp.xcodeproj -scheme StandUp \
 
 如果不使用自动暂停媒体功能，可以选择“稍后”或不授予权限；其他计时和提醒功能仍可正常使用。系统按键会作用于当时响应它的媒体应用，也可能开始播放原本已暂停的媒体。
 
+Xcode 按 `⌘R` 运行的 Debug 版（`com.mark.standup.debug`）与日用版（`com.mark.standup`）各自保存设置并单独授权。调试自动暂停媒体时，请使用有效的 Apple Development 签名，开启 Debug 版的自动暂停媒体，然后在“辅助功能”里添加 Xcode 构建目录中的 `StandUp.app`。保持同一签名身份后，正常重新编译无需重复授权。上面的 `CODE_SIGNING_ALLOWED=NO` 命令适合验证构建；测试辅助功能权限请用 Xcode 的 Run。
+
 ## 运行测试
 
 共享 Scheme 包含独立的 `StandUpTests`，覆盖工作与休息续跑、提醒排队、闹钟改期和持久化等行为。

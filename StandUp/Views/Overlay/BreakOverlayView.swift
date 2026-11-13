@@ -9,6 +9,7 @@ struct BreakOverlayView: View {
     private static let clockFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
+        formatter.timeZone = .autoupdatingCurrent
         formatter.dateFormat = "HH:mm"
         return formatter
     }()
@@ -19,29 +20,15 @@ struct BreakOverlayView: View {
     let onDismiss: () -> Void
     let displayMode: OverlayDisplayMode
     
-    init(customReminderText: String,
-         presetReminder: String,
-         breakDuration: TimeInterval,
-         onDismiss: @escaping () -> Void,
-         displayMode: OverlayDisplayMode = .breakReminder) {
-        self.customReminderText = customReminderText
-        self.presetReminder = presetReminder
-        self.breakDuration = breakDuration
-        self.onDismiss = onDismiss
-        self.displayMode = displayMode
-    }
-    
     private enum Phase { case resting, countingDown }
     
     @State private var phase: Phase = .resting
-    @State private var countdownRemaining: TimeInterval = 0
+    @State private var countdownRemaining = 0
     @State private var countdownEndDate: Date?
-    @State private var currentTimeString = ""
     @State private var appeared = false
     @FocusState private var acceptsKeyboardInput: Bool
     
-    // 共享一个 Timer，视图释放后订阅会自动取消。
-    static let sharedTickTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private static let countdownTicks = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     // MARK: - Body
     
@@ -61,13 +48,16 @@ struct BreakOverlayView: View {
                 VStack(spacing: 0) {
                     Spacer()
                     ZStack {
-                        restingContent
-                            .opacity(phase == .resting ? 1 : 0)
-                            .animation(.easeOut(duration: 0.12), value: phase)
-                        countdownContent
-                            .opacity(phase == .countingDown ? 1 : 0)
-                            .animation(.easeIn(duration: 0.35).delay(0.12), value: phase)
+                        if phase == .resting {
+                            restingContent
+                                .transition(.opacity)
+                        } else {
+                            countdownContent
+                                .transition(.opacity)
+                                .onReceive(Self.countdownTicks) { _ in tick() }
+                        }
                     }
+                    .animation(.easeInOut(duration: 0.25), value: phase)
                     Spacer()
                 }
             }
@@ -76,15 +66,10 @@ struct BreakOverlayView: View {
         }
         .opacity(appeared ? 1 : 0)
         .onAppear {
-            if displayMode == .alarm { updateClock() }
             withAnimation(.easeIn(duration: 0.6)) { appeared = true }
             if displayMode == .breakReminder {
                 requestKeyboardFocus()
             }
-        }
-        .onReceive(Self.sharedTickTimer) { _ in
-            if displayMode == .alarm { updateClock() }
-            else { tick() }
         }
         .focusable()
         .focused($acceptsKeyboardInput)
@@ -105,6 +90,7 @@ struct BreakOverlayView: View {
                 Image(nsImage: nsImg)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    .accessibilityHidden(true)
             } else {
                 Color.black
             }
@@ -125,31 +111,22 @@ struct BreakOverlayView: View {
                 .tracking(1)
                 .shadow(color: .black.opacity(0.5), radius: 2)
             
-            Text(currentTimeString)
-                .font(.system(size: 100, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .tracking(6)
-                .foregroundColor(.white)
-                .contentTransition(.numericText())
-                .shadow(color: .black.opacity(0.5), radius: 4)
-            
-            if !customReminderText.isEmpty {
-                Text(customReminderText)
-                    .font(.system(size: 28, weight: .regular, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(10).tracking(1.0)
-                    .foregroundColor(.white.opacity(0.80))
-                    .padding(.horizontal, 60)
-                    .shadow(color: .black.opacity(0.5), radius: 2)
-            } else {
-                Text(presetReminder)
-                    .font(.system(size: 28, weight: .regular, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(10).tracking(1.0)
-                    .foregroundColor(.white.opacity(0.80))
-                    .padding(.horizontal, 60)
-                    .shadow(color: .black.opacity(0.5), radius: 2)
+            TimelineView(.everyMinute) { context in
+                Text(Self.clockFormatter.string(from: context.date))
+                    .font(.system(size: 100, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .tracking(6)
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 4)
             }
+
+            Text(customReminderText.isEmpty ? presetReminder : customReminderText)
+                .font(.system(size: 28, weight: .regular, design: .rounded))
+                .multilineTextAlignment(.center)
+                .lineSpacing(10).tracking(1.0)
+                .foregroundStyle(.white.opacity(0.80))
+                .padding(.horizontal, 60)
+                .shadow(color: .black.opacity(0.5), radius: 2)
             
             Button { onDismiss() } label: {
                 Text("我知道了")
@@ -167,7 +144,6 @@ struct BreakOverlayView: View {
             Spacer()
         }
         .transition(.opacity)
-        .onAppear { updateClock() }
     }
     
     // MARK: - 计时器：休息提示
@@ -245,25 +221,29 @@ struct BreakOverlayView: View {
         .padding(.top, -20).padding(.bottom, 160)
     }
     
-    // MARK: - Helpers
+    // MARK: - 倒计时与焦点
     
     private var formattedCountdown: String {
-        let mins = Int(countdownRemaining) / 60
-        let secs = Int(countdownRemaining) % 60
+        let mins = countdownRemaining / 60
+        let secs = countdownRemaining % 60
         return String(format: "%02d:%02d", mins, secs)
     }
     
     private func tick() {
         guard phase == .countingDown, let endDate = countdownEndDate else { return }
         let remaining = endDate.timeIntervalSince(Date())
-        countdownRemaining = remaining > 0 ? remaining : 0
-        if remaining <= 0 { onDismiss() }
+        let seconds = Int(max(0, remaining).rounded(.up))
+        if countdownRemaining != seconds { countdownRemaining = seconds }
+        if remaining <= 0 {
+            countdownEndDate = nil
+            onDismiss()
+        }
     }
 
     private func startBreak() {
         guard phase == .resting else { return }
         phase = .countingDown
-        countdownRemaining = breakDuration
+        countdownRemaining = Int(breakDuration.rounded(.up))
         countdownEndDate = Date().addingTimeInterval(breakDuration)
     }
 
@@ -280,11 +260,6 @@ struct BreakOverlayView: View {
         }
     }
     
-    private func updateClock() {
-        let newValue = Self.clockFormatter.string(from: Date())
-        guard newValue != currentTimeString else { return }
-        currentTimeString = newValue
-    }
 }
 
 // MARK: - 副屏背景视图（只铺背景图，无文字 / 无倒计时 / 无按钮）

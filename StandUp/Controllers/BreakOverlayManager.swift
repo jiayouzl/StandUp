@@ -5,11 +5,13 @@
 // 管理休息和闹钟提醒窗口，并将提醒铺展到当前连接的所有显示器。
 
 import AppKit
+import Combine
 import SwiftUI
 
 private final class BreakOverlayWindow: NSWindow {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    var isInteractive = false
+    override var canBecomeKey: Bool { isInteractive }
+    override var canBecomeMain: Bool { isInteractive }
 }
 
 @MainActor
@@ -24,9 +26,9 @@ protocol BreakOverlayPresenting {
 
 final class BreakOverlayManager: BreakOverlayPresenting {
     
-    /// 窗口组。每次 show 时都会按“当前屏幕布局”重新对齐，
-    /// 保证任何一块新增/拔掉的屏幕（包括副屏/平板）都能被覆盖。
-    private var windows: [NSWindow] = []
+    private var primaryWindow: NSWindow?
+    private var secondaryWindows: [NSWindow] = []
+    private var screenChanges: AnyCancellable?
     
     func show(customReminderText: String,
               presetReminder: String,
@@ -34,41 +36,55 @@ final class BreakOverlayManager: BreakOverlayPresenting {
               onDismiss: @escaping () -> Void,
               displayMode: OverlayDisplayMode) {
         
-        // 按当前屏幕布局重建窗口，确保主屏 + 所有副屏都有对应窗口
-        rebuildWindows()
-        
-        // 主屏 = 带菜单栏、坐标原点(0,0) 所在的那块屏幕；其余全部视为副屏。
-        // 主屏保留完整界面（背景图 + 倒计时 + 全部功能）；副屏只铺背景图。
-        let screens = NSScreen.screens
-        var primaryWindow: NSWindow?
-        for (index, win) in windows.enumerated() {
-            let screen = screens[index]
-            // 关键：创建后再次把窗口 frame 精确设置到屏幕 frame，
-            // 避免 contentView 设置或坐标换算把窗口挪到屏幕外。
-            win.setFrame(screen.frame, display: false)
-            if isPrimaryScreen(screen) {
-                updateContent(window: win,
-                              customReminderText: customReminderText,
-                              presetReminder: presetReminder,
-                              breakDuration: breakDuration,
-                              onDismiss: onDismiss,
-                              displayMode: displayMode)
-                primaryWindow = win
-            } else {
-                updateSecondaryBackground(window: win, screen: screen)
-                // 菜单栏 App 在副屏上用 orderFront(nil) 可能不显示，必须用 Regardless
-                win.orderFrontRegardless()
-            }
-        }
+        hide()
+        let window = createWindow(interactive: true)
+        updateContent(window: window,
+                      customReminderText: customReminderText,
+                      presetReminder: presetReminder,
+                      breakDuration: breakDuration,
+                      onDismiss: onDismiss,
+                      displayMode: displayMode)
+        primaryWindow = window
+        screenChanges = NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateScreenLayout() }
+        updateScreenLayout()
+    }
 
-        if let primaryWindow {
-            focusPrimaryWindow(primaryWindow)
+    private func updateScreenLayout() {
+        guard let primaryWindow else { return }
+        closeWindows(secondaryWindows)
+        secondaryWindows.removeAll()
+        let screens = NSScreen.screens
+        // 系统把主显示器放在首位。保留主窗口的视图，避免重置进行中的休息倒计时。
+        guard let primaryScreen = screens.first else {
+            primaryWindow.orderOut(nil)
+            return
         }
+        primaryWindow.setFrame(primaryScreen.frame, display: true)
+        secondaryWindows = screens.dropFirst().map { screen in
+            let window = createWindow(interactive: false)
+            updateSecondaryBackground(window: window, screen: screen)
+            window.setFrame(screen.frame, display: false)
+            // 菜单栏 App 在副屏上用 orderFront(nil) 可能不显示。
+            window.orderFrontRegardless()
+            return window
+        }
+        focusPrimaryWindow(primaryWindow)
     }
     
     func hide() {
-        let hiddenWindows = windows
-        windows.removeAll()
+        screenChanges?.cancel()
+        screenChanges = nil
+        var hiddenWindows = secondaryWindows
+        if let primaryWindow { hiddenWindows.append(primaryWindow) }
+        primaryWindow = nil
+        secondaryWindows.removeAll()
+        closeWindows(hiddenWindows)
+    }
+
+    private func closeWindows(_ hiddenWindows: [NSWindow]) {
+        guard !hiddenWindows.isEmpty else { return }
         for window in hiddenWindows {
             window.orderOut(nil)
         }
@@ -80,28 +96,9 @@ final class BreakOverlayManager: BreakOverlayPresenting {
         }
     }
     
-    func fadeOut(completion: @escaping () -> Void) {
-        hide()
-        completion()
-    }
-    
     // MARK: - 窗口创建
-    
-    /// 依据当前屏幕布局重建窗口组：先关闭旧窗口，再为每块屏幕各建一个新窗口。
-    private func rebuildWindows() {
-        for w in windows {
-            w.close()
-        }
-        windows = NSScreen.screens.map { createWindow(screen: $0) }
-    }
-    
-    /// 主屏判定：坐标原点 (0,0) 所在的屏幕就是带菜单栏的主显示器。
-    /// （NSScreen.main 是“键盘焦点屏”，在副屏上操作时会漂移，不能用。）
-    private func isPrimaryScreen(_ screen: NSScreen) -> Bool {
-        return screen.frame.origin == .zero
-    }
-    
-    private func createWindow(screen: NSScreen) -> NSWindow {
+
+    private func createWindow(interactive: Bool) -> NSWindow {
         // 注意：不要在 init 里同时传 contentRect + screen:，
         // 否则非主屏(Retina)上坐标会被重复计算、窗口跑到屏幕外。
         // 改为：用 .zero 创建，再显式 setFrame 到屏幕 frame。
@@ -111,7 +108,7 @@ final class BreakOverlayManager: BreakOverlayPresenting {
             backing: .buffered,
             defer: false
         )
-        win.setFrame(screen.frame, display: false)
+        win.isInteractive = interactive
         win.level = .screenSaver
         win.isOpaque = false
         win.backgroundColor = .clear
@@ -124,7 +121,7 @@ final class BreakOverlayManager: BreakOverlayPresenting {
     /// 副屏全部显示后再激活主窗口，避免后续窗口排序抢走键盘焦点。
     private func focusPrimaryWindow(_ window: NSWindow) {
         let focus = { [weak self, weak window] in
-            guard let self, let window, self.windows.contains(where: { $0 === window }) else { return }
+            guard let self, let window, self.primaryWindow === window, !NSScreen.screens.isEmpty else { return }
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
             window.makeMain()
@@ -144,7 +141,7 @@ final class BreakOverlayManager: BreakOverlayPresenting {
                                presetReminder: String,
                                breakDuration: TimeInterval,
                                onDismiss: @escaping () -> Void,
-                               displayMode: OverlayDisplayMode = .breakReminder) {
+                               displayMode: OverlayDisplayMode) {
         let overlayView = BreakOverlayView(
             customReminderText: customReminderText,
             presetReminder: presetReminder,

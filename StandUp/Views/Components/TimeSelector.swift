@@ -20,7 +20,6 @@ struct TimeSelector: View {
     
     var body: some View {
         Button {
-            guard !disabled else { return }
             showEditor = true
         } label: {
             HStack(spacing: 4) {
@@ -44,6 +43,9 @@ struct TimeSelector: View {
         }
         .buttonStyle(.plain)
         .disabled(disabled)
+        .onChange(of: disabled) { _, disabled in
+            if disabled { showEditor = false }
+        }
         .managedPopover(isPresented: $showEditor) {
             TimeEditorPopover(
                 currentValue: $value,
@@ -58,7 +60,7 @@ struct TimeSelector: View {
 
 // MARK: - 弹窗内容
 
-struct TimeEditorPopover: View {
+private struct TimeEditorPopover: View {
     @Binding var currentValue: Int
     let presets: [Int]
     let range: ClosedRange<Int>

@@ -41,6 +41,8 @@ struct AlarmTimePicker: View {
                     )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("日期")
+            .accessibilityValue(dateLabel)
             .managedPopover(isPresented: $showDate) { datePopover }
             
             // 小时
@@ -57,6 +59,8 @@ struct AlarmTimePicker: View {
                     )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("小时")
+            .accessibilityValue(String(hour24))
             .managedPopover(isPresented: $showHour) {
                 valuePopover(title: "小时", range: 0...23, current: hour24, format: "%02d", onSelect: { setHour($0) }, dismiss: { showHour = false })
             }
@@ -80,12 +84,20 @@ struct AlarmTimePicker: View {
                     )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("分钟")
+            .accessibilityValue(String(minute))
             .managedPopover(isPresented: $showMinute) {
                 valuePopover(title: "分钟", range: 0...59, current: minute, format: "%02d", onSelect: { setMinute($0) }, dismiss: { showMinute = false })
             }
         }
         .disabled(disabled)
         .opacity(disabled ? 0.5 : 1)
+        .onChange(of: disabled) { _, disabled in
+            guard disabled else { return }
+            showDate = false
+            showHour = false
+            showMinute = false
+        }
     }
     
     // MARK: - Setters
@@ -168,7 +180,7 @@ struct AlarmTimePicker: View {
     
     private var quickDates: [(label: String, date: Date, formatted: String)] {
         let cal = Calendar.current
-        let today = Date()
+        let today = cal.startOfDay(for: Date())
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")
         f.dateFormat = "M月d日"

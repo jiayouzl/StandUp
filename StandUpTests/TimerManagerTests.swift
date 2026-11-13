@@ -71,6 +71,84 @@ final class TimerManagerTests: XCTestCase {
     }
 
     @MainActor
+    func testQueuedAlarmsArePresentedInDeadlineOrder() throws {
+        let (manager, overlay, defaults, suite) = try makeManager()
+        defer {
+            manager.prepareToTerminate()
+            defaults.removePersistentDomain(forName: suite)
+        }
+
+        let firstShown = expectation(description: "第一条闹钟已显示")
+        overlay.onShow = { _ in firstShown.fulfill() }
+        let now = Date()
+        XCTAssertTrue(manager.addAlarm(time: now.addingTimeInterval(0.2), reminderText: "第一条"))
+        XCTAssertTrue(manager.addAlarm(time: now.addingTimeInterval(0.6), reminderText: "第三条"))
+        XCTAssertTrue(manager.addAlarm(time: now.addingTimeInterval(0.4), reminderText: "第二条"))
+        wait(for: [firstShown], timeout: 4)
+        XCTAssertEqual(overlay.reminderText, "第一条")
+
+        let extraPresentation = expectation(description: "等待确认时不覆盖第一条闹钟")
+        extraPresentation.isInverted = true
+        overlay.onShow = { _ in extraPresentation.fulfill() }
+        wait(for: [extraPresentation], timeout: 0.7)
+        overlay.onShow = nil
+
+        try XCTUnwrap(overlay.dismiss)()
+        XCTAssertEqual(overlay.reminderText, "第二条")
+        try XCTUnwrap(overlay.dismiss)()
+        XCTAssertEqual(overlay.reminderText, "第三条")
+        try XCTUnwrap(overlay.dismiss)()
+        XCTAssertTrue(manager.alarms.isEmpty)
+        XCTAssertNil(overlay.visibleMode)
+    }
+
+    @MainActor
+    func testReschedulingVisibleAlarmIgnoresOldAcknowledgmentAndPersistsEdit() throws {
+        let (manager, overlay, defaults, suite) = try makeManager()
+        defer {
+            manager.prepareToTerminate()
+            defaults.removePersistentDomain(forName: suite)
+        }
+
+        let alarmShown = expectation(description: "待改期的闹钟已显示")
+        overlay.onShow = { _ in alarmShown.fulfill() }
+        XCTAssertTrue(manager.addAlarm(time: Date().addingTimeInterval(0.2), reminderText: "喝水"))
+        wait(for: [alarmShown], timeout: 4)
+
+        let originalDismiss = try XCTUnwrap(overlay.dismiss)
+        let alarmID = try XCTUnwrap(manager.alarms.first?.id)
+        let newTime = Date().addingTimeInterval(3600)
+        manager.updateAlarm(id: alarmID, time: newTime, reminderText: "开会")
+        XCTAssertNil(overlay.visibleMode)
+        originalDismiss()
+
+        let relaunched = TimerManager(defaults: defaults, overlayManager: OverlaySpy())
+        defer { relaunched.prepareToTerminate() }
+        let alarm = try XCTUnwrap(relaunched.alarms.first)
+        XCTAssertEqual(alarm.id, alarmID)
+        XCTAssertEqual(alarm.time, newTime)
+        XCTAssertEqual(alarm.reminderText, "开会")
+    }
+
+    @MainActor
+    func testManualStopCancelsPendingAutomaticStart() throws {
+        let (manager, _, defaults, suite) = try makeManager()
+        defer {
+            manager.prepareToTerminate()
+            defaults.removePersistentDomain(forName: suite)
+        }
+
+        manager.scheduleAutomaticStart()
+        manager.start()
+        manager.stop()
+        let afterAutomaticStart = expectation(description: "已超过自动启动时间")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.3) { afterAutomaticStart.fulfill() }
+        wait(for: [afterAutomaticStart], timeout: 4)
+        XCTAssertFalse(manager.isRunning)
+        XCTAssertEqual(manager.countdownDisplay.remainingSeconds, 0)
+    }
+
+    @MainActor
     private func makeManager() throws -> (TimerManager, OverlaySpy, UserDefaults, String) {
         let suite = "StandUpTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -84,6 +162,7 @@ private final class OverlaySpy: BreakOverlayPresenting {
     var onShow: ((OverlayDisplayMode) -> Void)?
     var dismiss: (() -> Void)?
     var visibleMode: OverlayDisplayMode?
+    var reminderText: String?
 
     func show(customReminderText: String,
               presetReminder: String,
@@ -92,11 +171,13 @@ private final class OverlaySpy: BreakOverlayPresenting {
               displayMode: OverlayDisplayMode) {
         dismiss = onDismiss
         visibleMode = displayMode
+        reminderText = customReminderText
         onShow?(displayMode)
     }
 
     func hide() {
         dismiss = nil
         visibleMode = nil
+        reminderText = nil
     }
 }

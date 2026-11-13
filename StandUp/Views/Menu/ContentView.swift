@@ -23,7 +23,7 @@ struct ContentView: View {
     @State private var editBreakMinutes: Int = 5
     @State private var editReminderText: String = ""
     @State private var newAlarmText: String = ""
-    @State private var newAlarmTime: Date = Date()
+    @State private var newAlarmTime = Self.nextAlarmDraftTime()
     @State private var editingAlarmId: UUID? = nil
     
     private var alarmCount: Int { timer.alarms.count }
@@ -40,75 +40,75 @@ struct ContentView: View {
             
             // 内容 + 毛玻璃
             VStack(spacing: 0) {
-            // ── 顶部标题 ──
-            HStack(spacing: 10) {
-                Image(systemName: "figure.walk")
-                    .font(.title3)
-                    .foregroundColor(.secondary)
-                Text("StandUp")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                Text("v\(appVersion)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Link(destination: URL(string: "https://github.com/jiayouzl/StandUp/")!) {
-                    Label("GitHub", systemImage: "arrow.up.right.square")
+                // ── 顶部标题 ──
+                HStack(spacing: 10) {
+                    Image(systemName: "figure.walk")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                    Text("StandUp")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    Text("v\(appVersion)")
                         .font(.caption)
-                }
-                .pointingHandCursor()
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            
-            Divider()
-            
-            // ── 模式切换 ──
-            HStack(spacing: 10) {
-                Label("模式", systemImage: "arrow.triangle.swap")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Picker("", selection: $isAlarmMode) {
-                    Text("计时器").tag(false)
-                    Text("闹钟").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 150)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
-            
-            Divider()
-            
-            ScrollView {
-                VStack(spacing: 20) {
-                    if isAlarmMode {
-                        alarmModeContent
-                    } else {
-                        timerModeContent
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Link(destination: URL(string: "https://github.com/jiayouzl/StandUp/")!) {
+                        Label("GitHub", systemImage: "arrow.up.right.square")
+                            .font(.caption)
                     }
+                    .pointingHandCursor()
                 }
-                .padding(20)
-            }
-            
-            // ── 退出 ──
-            Button {
-                AppDelegate.allowTerminate = true
-                NSApplication.shared.terminate(nil)
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "xmark.circle.fill")
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+
+                Divider()
+
+                // ── 模式切换 ──
+                HStack(spacing: 10) {
+                    Label("模式", systemImage: "arrow.triangle.swap")
                         .font(.caption)
-                    Text("退出")
-                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Picker("模式", selection: $isAlarmMode) {
+                        Text("计时器").tag(false)
+                        Text("闹钟").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 150)
                 }
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+
+                Divider()
+
+                ScrollView {
+                    VStack(spacing: 20) {
+                        if isAlarmMode {
+                            alarmModeContent
+                        } else {
+                            timerModeContent
+                        }
+                    }
+                    .padding(20)
+                }
+
+                // ── 退出 ──
+                Button {
+                    AppDelegate.quit()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption)
+                        Text("退出")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-        }
             .frame(width: 300)
             .background(
                 VisualEffectBlur(material: .menu, blendingMode: .withinWindow)
@@ -120,6 +120,16 @@ struct ContentView: View {
             editWorkMinutes = Int(timer.workDuration / 60)
             editBreakMinutes = Int(timer.breakActivityDuration / 60)
             editReminderText = timer.reminderText
+        }
+        .onChange(of: timer.alarms.map(\.id)) { _, alarmIDs in
+            if let editingAlarmId, !alarmIDs.contains(editingAlarmId) {
+                resetAlarmForm()
+            }
+        }
+        .onChange(of: timer.isAutoPauseEnabled) { _, enabled in
+            if enabled {
+                DispatchQueue.main.async { AppDelegate.requestMediaPermissionIfNeeded() }
+            }
         }
     }
     
@@ -139,6 +149,7 @@ struct ContentView: View {
             Label("提醒文字", systemImage: "text.quote")
                 .font(.subheadline).foregroundColor(.secondary)
             TextEditor(text: Binding(get: { editReminderText }, set: { editReminderText = String($0.prefix(20)) }))
+                .accessibilityLabel("提醒文字")
                 .font(.system(.body, design: .rounded))
                 .frame(height: 44)
                 .scrollContentBackground(.hidden)
@@ -170,6 +181,7 @@ struct ContentView: View {
                 .foregroundColor(.secondary)
             }
             .toggleStyle(.checkbox)
+            .help("发送系统播放／暂停按键，可能启动已暂停的媒体。")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .disabled(timer.isRunning)
@@ -236,6 +248,7 @@ struct ContentView: View {
             Label("提醒文字", systemImage: "text.quote")
                 .font(.subheadline).foregroundColor(.secondary)
             TextEditor(text: Binding(get: { newAlarmText }, set: { newAlarmText = String($0.prefix(20)) }))
+                .accessibilityLabel("闹钟提醒文字")
                 .font(.system(.body, design: .rounded))
                 .frame(height: 44)
                 .scrollContentBackground(.hidden)
@@ -251,9 +264,7 @@ struct ContentView: View {
         if let editingId = editingAlarmId {
             HStack(spacing: 10) {
                 Button {
-                    editingAlarmId = nil
-                    newAlarmText = ""
-                    newAlarmTime = Date()
+                    resetAlarmForm()
                 } label: {
                     Text("取消")
                         .font(.body.weight(.medium))
@@ -267,8 +278,7 @@ struct ContentView: View {
                 
                 Button {
                     timer.updateAlarm(id: editingId, time: newAlarmTime, reminderText: newAlarmText)
-                    editingAlarmId = nil
-                    newAlarmText = ""
+                    resetAlarmForm()
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
@@ -284,12 +294,17 @@ struct ContentView: View {
             }
         } else {
             Button {
-                _ = timer.addAlarm(time: newAlarmTime, reminderText: newAlarmText)
-                newAlarmText = ""
+                if timer.addAlarm(time: newAlarmTime, reminderText: newAlarmText) {
+                    resetAlarmForm()
+                }
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: alarmsFull ? "bell.slash" : "plus.circle.fill")
-                    Text(alarmsFull ? "已达上限（5个）" : "添加闹钟")
+                    if alarmsFull {
+                        Text("已达上限（\(TimerManager.maxAlarms) 个）")
+                    } else {
+                        Text("添加闹钟")
+                    }
                     if !alarmsFull {
                         Text("(\(alarmCount)/\(TimerManager.maxAlarms))")
                             .font(.caption)
@@ -323,80 +338,93 @@ struct ContentView: View {
     }
     
     // MARK: - 闹钟行
+
+    private static func nextAlarmDraftTime() -> Date {
+        let now = Date()
+        return Calendar.current.dateInterval(of: .minute, for: now)?.end ?? now.addingTimeInterval(60)
+    }
+
+    private func resetAlarmForm() {
+        editingAlarmId = nil
+        newAlarmText = ""
+        newAlarmTime = Self.nextAlarmDraftTime()
+    }
     
     private func alarmRow(_ alarm: AlarmItem) -> some View {
         let isEditing = editingAlarmId == alarm.id
-        return Button {
-            if isEditing {
-                editingAlarmId = nil
-                newAlarmText = ""
-                newAlarmTime = Date()
-            } else {
-                editingAlarmId = alarm.id
-                newAlarmTime = alarm.time
-                newAlarmText = alarm.reminderText
-            }
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Image(systemName: isEditing ? "pencil.circle.fill" : "bell.fill")
-                        .font(.caption)
-                        .foregroundColor(isEditing ? .orange : .red)
-                    Text(alarm.formattedTime)
-                        .font(.body.weight(.medium))
-                    Text("·")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                    Text(alarm.formattedDate)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Button {
-                        timer.removeAlarm(id: alarm.id)
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
+        return HStack(alignment: .top, spacing: 6) {
+            Button {
+                if isEditing {
+                    resetAlarmForm()
+                } else {
+                    editingAlarmId = alarm.id
+                    newAlarmTime = alarm.time
+                    newAlarmText = alarm.reminderText
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: isEditing ? "pencil.circle.fill" : "bell.fill")
+                            .font(.caption)
+                            .foregroundColor(isEditing ? .orange : .red)
+                        Text(alarm.formattedTime)
+                            .font(.body.weight(.medium))
+                        Text("·")
                             .font(.body)
                             .foregroundColor(.secondary)
+                        Text(alarm.formattedDate)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    .buttonStyle(.plain)
+
+                    if !alarm.reminderText.isEmpty {
+                        Text(alarm.reminderText)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .padding(.leading, 22)
+                    }
                 }
-                
-                if !alarm.reminderText.isEmpty {
-                    Text(alarm.reminderText)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .padding(.leading, 22)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isEditing ? Color.orange.opacity(0.08) : Color.gray.opacity(0.06))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(isEditing ? Color.orange.opacity(0.3) : Color.gray.opacity(0.12), lineWidth: isEditing ? 1 : 0.5)
-            )
+            .buttonStyle(.plain)
+            .help(isEditing ? "取消编辑" : "编辑闹钟")
+
+            Button {
+                timer.removeAlarm(id: alarm.id)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("删除 \(alarm.formattedDate) \(alarm.formattedTime) 的闹钟")
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isEditing ? Color.orange.opacity(0.08) : Color.gray.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(isEditing ? Color.orange.opacity(0.3) : Color.gray.opacity(0.12), lineWidth: isEditing ? 1 : 0.5)
+        )
     }
 
     
     // MARK: - 菜单背景
     
-    private var menuBgImage: some View {
+    @ViewBuilder private var menuBgImage: some View {
         if let nsImg = Self.menuBackgroundImage {
-            return AnyView(
-                Image(nsImage: nsImg)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 300)
-                    .clipped()
-            )
+            Image(nsImage: nsImg)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 300)
+                .clipped()
+                .accessibilityHidden(true)
         }
-        return AnyView(EmptyView())
     }
 }
 
@@ -415,14 +443,16 @@ private struct CountdownStatusRow: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Spacer()
-            HStack(spacing: 4) {
-                Image(systemName: "clock")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(countdown.formattedTime)
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .contentTransition(.numericText())
+            if !isOnBreak {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(countdown.formattedTime)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .contentTransition(.numericText())
+                }
             }
         }
         .padding(.horizontal, 14)

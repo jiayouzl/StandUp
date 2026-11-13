@@ -2,7 +2,8 @@
 import Foundation
 import Combine
 import AppKit
-import AVFoundation
+import ApplicationServices
+import AVFAudio
 
 final class CountdownDisplayState: ObservableObject {
     @Published private(set) var remainingSeconds = 0
@@ -14,7 +15,7 @@ final class CountdownDisplayState: ObservableObject {
     }
 
     func update(remaining: TimeInterval) {
-        let seconds = max(0, Int(remaining))
+        let seconds = Int(max(0, remaining).rounded(.up))
         guard seconds != remainingSeconds else { return }
         remainingSeconds = seconds
     }
@@ -22,7 +23,7 @@ final class CountdownDisplayState: ObservableObject {
 
 // MARK: - TimerManager
 
-class TimerManager: ObservableObject {
+final class TimerManager: ObservableObject {
     
     static let shared = TimerManager(defaults: .standard, overlayManager: BreakOverlayManager())
 
@@ -33,11 +34,16 @@ class TimerManager: ObservableObject {
         self.defaults = defaults
         self.overlayManager = overlayManager
         loadSettings()
+        clockChanges = NotificationCenter.default.publisher(for: .NSSystemClockDidChange)
+            .merge(with: NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshSchedule() }
+        refreshSchedule()
     }
     
     @Published var workDuration: TimeInterval = 50 * 60
     @Published var breakActivityDuration: TimeInterval = 5 * 60
-    static let presetReminders = [
+    private static let presetReminders = [
         "起来走走，看看远方",
         "喝口水，深呼吸一下",
         "站起来，转转脖子",
@@ -50,7 +56,7 @@ class TimerManager: ObservableObject {
         "看看窗外，给眼睛放个假"
     ]
     @Published var reminderText: String = ""
-    @Published var currentPresetReminder: String = presetReminders[0]
+    private var currentPresetReminder: String = presetReminders[0]
     @Published var isPreReminderEnabled = false {
         didSet { defaults.set(isPreReminderEnabled, forKey: "isPreReminderEnabled") }
     }
@@ -62,28 +68,70 @@ class TimerManager: ObservableObject {
     @Published private(set) var isOnBreak = false
     let countdownDisplay = CountdownDisplayState()
     
-    // MARK: - Alarm Mode (多条闹钟)
+    // MARK: - 多条闹钟
     
     @Published private(set) var alarms: [AlarmItem] = []
     static let maxAlarms = 5
     
+    private var autoStartTimer: Timer?
     private var workTimer: Timer?
     private var workEndDate: Date?
-    private var alarmCheckTimer: Timer?
+    private var alarmTimer: Timer?
+    private var clockChanges: AnyCancellable?
     private var promptPlayer: AVAudioPlayer?
     private var hasPlayedPreReminder = false
     private var shouldResumeMediaAfterBreak = false
-    private var presentedAlarmID: UUID?
+    private var presentedAlarm: (id: UUID, token: UUID)?
     
+    func scheduleAutomaticStart() {
+        autoStartTimer?.invalidate()
+        let timer = Timer(timeInterval: 2, repeats: false) { [weak self] _ in
+            guard let self, !self.isRunning else { return }
+            self.start()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        autoStartTimer = timer
+    }
+
     func start() {
-        stop()
+        cancelAutomaticStart()
+        saveTimerSettings()
+        beginWorkCycle()
+    }
+
+    private func beginWorkCycle() {
+        resetWorkCycle()
         currentPresetReminder = Self.presetReminders.randomElement()!
         isRunning = true
-        scheduleWorkTimer()
-        saveSettings()
+        workEndDate = Date().addingTimeInterval(workDuration)
+        countdownDisplay.update(remaining: workDuration)
+        startWorkTimer()
+        refreshSchedule()
     }
     
     func stop() {
+        cancelAutomaticStart()
+        resetWorkCycle()
+        isRunning = false
+        countdownDisplay.update(remaining: 0)
+        refreshSchedule()
+    }
+
+    func prepareToTerminate() {
+        cancelAutomaticStart()
+        resetWorkCycle()
+        alarmTimer?.invalidate()
+        alarmTimer = nil
+        clockChanges?.cancel()
+        if let id = presentedAlarm?.id { finishAlarmPresentation(id: id) }
+    }
+
+    private func cancelAutomaticStart() {
+        autoStartTimer?.invalidate()
+        autoStartTimer = nil
+    }
+
+    private func resetWorkCycle() {
         workTimer?.invalidate()
         workTimer = nil
         workEndDate = nil
@@ -92,32 +140,23 @@ class TimerManager: ObservableObject {
         hasPlayedPreReminder = false
         resumeMediaPlaybackIfNeeded()
         if isOnBreak { overlayManager.hide() }
-        isRunning = false
         isOnBreak = false
-        countdownDisplay.update(remaining: 0)
     }
     
-    private func scheduleWorkTimer() {
-        workTimer?.invalidate()
-        workEndDate = Date().addingTimeInterval(workDuration)
-        countdownDisplay.update(remaining: workDuration)
-        hasPlayedPreReminder = false
-        
+    private func startWorkTimer() {
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] timer in
             guard let self = self, let endDate = self.workEndDate else {
                 timer.invalidate()
                 return
             }
             
-            let remaining = endDate.timeIntervalSince(Date())
+            let now = Date()
+            let remaining = endDate.timeIntervalSince(now)
             if remaining <= 0 {
                 self.countdownDisplay.update(remaining: 0)
-                // 闹钟确认后再显示到期的休息提醒。
-                guard self.presentedAlarmID == nil else { return }
                 timer.invalidate()
                 self.workTimer = nil
-                self.workEndDate = nil
-                self.showBreakOverlay()
+                self.refreshSchedule(now: now)
             } else {
                 self.countdownDisplay.update(remaining: remaining)
                 if self.isPreReminderEnabled, remaining <= 10, !self.hasPlayedPreReminder {
@@ -133,17 +172,15 @@ class TimerManager: ObservableObject {
     
     private func showBreakOverlay() {
         isOnBreak = true
-        shouldResumeMediaAfterBreak = false
-        if isAutoPauseEnabled {
-            sendPlayPauseMediaKey()
-            shouldResumeMediaAfterBreak = true
+        if isAutoPauseEnabled, AXIsProcessTrusted() {
+            shouldResumeMediaAfterBreak = sendPlayPauseMediaKey()
         }
         overlayManager.show(
             customReminderText: reminderText, presetReminder: currentPresetReminder,
             breakDuration: breakActivityDuration,
             onDismiss: { [weak self] in
                 guard let self, self.isOnBreak else { return }
-                self.start()
+                self.beginWorkCycle()
             },
             displayMode: .breakReminder
         )
@@ -156,10 +193,10 @@ class TimerManager: ObservableObject {
         promptPlayer?.play()
     }
 
-    private func sendPlayPauseMediaKey() {
+    private func sendPlayPauseMediaKey() -> Bool {
         let playPauseKeyCode = 16
 
-        func postEvent(isKeyDown: Bool) {
+        func makeEvent(isKeyDown: Bool) -> CGEvent? {
             let keyState = isKeyDown ? 0xA : 0xB
             let data1 = (playPauseKeyCode << 16) | (keyState << 8)
             let event = NSEvent.otherEvent(
@@ -173,17 +210,19 @@ class TimerManager: ObservableObject {
                 data1: data1,
                 data2: -1
             )
-            event?.cgEvent?.post(tap: CGEventTapLocation.cghidEventTap)
+            return event?.cgEvent
         }
 
-        postEvent(isKeyDown: true)
-        postEvent(isKeyDown: false)
+        guard let keyDown = makeEvent(isKeyDown: true), let keyUp = makeEvent(isKeyDown: false) else { return false }
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        return true
     }
 
     private func resumeMediaPlaybackIfNeeded() {
         guard shouldResumeMediaAfterBreak else { return }
         shouldResumeMediaAfterBreak = false
-        sendPlayPauseMediaKey()
+        if AXIsProcessTrusted() { _ = sendPlayPauseMediaKey() }
     }
     
     // MARK: - 多条闹钟方法
@@ -192,79 +231,100 @@ class TimerManager: ObservableObject {
     @discardableResult
     func addAlarm(time: Date, reminderText: String) -> Bool {
         guard alarms.count < Self.maxAlarms else { return false }
-        var adjustedTime = time
-        while adjustedTime <= Date() {
-            adjustedTime = Calendar.current.date(byAdding: .day, value: 1, to: adjustedTime) ?? adjustedTime
-        }
+        let adjustedTime = nextAlarmTime(time)
         let alarm = AlarmItem(time: adjustedTime, reminderText: reminderText)
         alarms.append(alarm)
-        scheduleAlarmCheck()
-        saveSettings()
+        saveAlarms()
+        refreshSchedule()
         return true
     }
     
     func removeAlarm(id: UUID) {
-        alarms.removeAll(where: { $0.id == id })
-        if alarms.isEmpty {
-            alarmCheckTimer?.invalidate()
-            alarmCheckTimer = nil
-        }
-        saveSettings()
+        guard let index = alarms.firstIndex(where: { $0.id == id }) else { return }
+        alarms.remove(at: index)
+        finishAlarmPresentation(id: id)
+        saveAlarms()
+        refreshSchedule()
     }
     
     func updateAlarm(id: UUID, time: Date, reminderText: String) {
         guard let index = alarms.firstIndex(where: { $0.id == id }) else { return }
-        var adjustedTime = time
-        while adjustedTime <= Date() {
-            adjustedTime = Calendar.current.date(byAdding: .day, value: 1, to: adjustedTime) ?? adjustedTime
-        }
+        let adjustedTime = nextAlarmTime(time)
         alarms[index] = AlarmItem(id: id, time: adjustedTime, reminderText: reminderText)
-        scheduleAlarmCheck()
-        saveSettings()
+        finishAlarmPresentation(id: id)
+        saveAlarms()
+        refreshSchedule()
     }
-    
-    private func scheduleAlarmCheck() {
-        alarmCheckTimer?.invalidate()
-        guard !alarms.isEmpty else { return }
-        
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] timer in
-            guard let self = self else { timer.invalidate(); return }
-            guard !self.isOnBreak, self.presentedAlarmID == nil else { return }
-            
-            let now = Date()
-            if let alarm = self.alarms.first(where: { now >= $0.time }) {
-                self.fireAlarm(for: alarm)
+
+    private func nextAlarmTime(_ time: Date) -> Date {
+        let now = Date()
+        guard time <= now else { return time }
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute, .second], from: time)
+        return calendar.nextDate(after: now, matching: components, matchingPolicy: .nextTimePreservingSmallerComponents)
+            ?? now.addingTimeInterval(24 * 60 * 60)
+    }
+
+    private func finishAlarmPresentation(id: UUID) {
+        guard presentedAlarm?.id == id else { return }
+        presentedAlarm = nil
+        overlayManager.hide()
+    }
+
+    private func refreshSchedule(now: Date = Date()) {
+        alarmTimer?.invalidate()
+        alarmTimer = nil
+        guard !isOnBreak, presentedAlarm == nil else { return }
+
+        let nextAlarm = alarms.min(by: { $0.time < $1.time })
+        // 两种提醒同时到期时，先处理最早到期的闹钟。
+        if let nextAlarm, nextAlarm.time <= now {
+            fireAlarm(for: nextAlarm)
+        } else if let endDate = workEndDate, endDate <= now {
+            workTimer?.invalidate()
+            workTimer = nil
+            workEndDate = nil
+            countdownDisplay.update(remaining: 0)
+            showBreakOverlay()
+        } else {
+            // 系统时钟调回到工作截止时间之前时，恢复曾暂停的刷新。
+            if let endDate = workEndDate, workTimer == nil {
+                countdownDisplay.update(remaining: endDate.timeIntervalSince(now))
+                startWorkTimer()
+            }
+            if let nextAlarm {
+                let timer = Timer(fire: nextAlarm.time, interval: 0, repeats: false) { [weak self] _ in
+                    self?.refreshSchedule()
+                }
+                RunLoop.main.add(timer, forMode: .common)
+                alarmTimer = timer
             }
         }
-        timer.tolerance = 0.2
-        RunLoop.main.add(timer, forMode: .common)
-        alarmCheckTimer = timer
     }
     
     private func fireAlarm(for alarm: AlarmItem) {
-        presentedAlarmID = alarm.id
+        let token = UUID()
+        presentedAlarm = (id: alarm.id, token: token)
         overlayManager.show(
             customReminderText: alarm.reminderText,
             presetReminder: Self.presetReminders.randomElement()!,
             breakDuration: breakActivityDuration,
             onDismiss: { [weak self] in
-                guard let self, self.presentedAlarmID == alarm.id else { return }
-                self.overlayManager.hide()
-                self.presentedAlarmID = nil
+                guard let self, self.presentedAlarm?.token == token else { return }
                 self.removeAlarm(id: alarm.id)
             },
             displayMode: .alarm
         )
     }
     
-    // MARK: - Settings
+    // MARK: - 设置持久化
     
     private func loadSettings() {
         let ud = defaults
         let work = ud.double(forKey: "workDuration")
-        if work > 0 { workDuration = work }
+        if (60...14_400).contains(work) { workDuration = work }
         let brk = ud.double(forKey: "breakActivityDuration")
-        if brk > 0 { breakActivityDuration = brk }
+        if (60...3_600).contains(brk) { breakActivityDuration = brk }
         if let text = ud.string(forKey: "reminderText"), !text.isEmpty {
             reminderText = text
         }
@@ -272,22 +332,22 @@ class TimerManager: ObservableObject {
         isAutoPauseEnabled = ud.bool(forKey: "isAutoPauseEnabled")
         if let data = ud.data(forKey: "alarms"),
            let decoded = try? JSONDecoder().decode([AlarmItem].self, from: data) {
-            alarms = decoded.filter { $0.time > Date() }
-            if !alarms.isEmpty {
-                scheduleAlarmCheck()
-            }
+            let now = Date()
+            alarms = decoded.filter { $0.time > now }
+            if alarms.count != decoded.count { saveAlarms() }
         }
     }
     
-    private func saveSettings() {
+    private func saveTimerSettings() {
         let ud = defaults
         ud.set(workDuration, forKey: "workDuration")
         ud.set(breakActivityDuration, forKey: "breakActivityDuration")
         ud.set(reminderText, forKey: "reminderText")
-        ud.set(isPreReminderEnabled, forKey: "isPreReminderEnabled")
-        ud.set(isAutoPauseEnabled, forKey: "isAutoPauseEnabled")
+    }
+
+    private func saveAlarms() {
         if let data = try? JSONEncoder().encode(alarms) {
-            ud.set(data, forKey: "alarms")
+            defaults.set(data, forKey: "alarms")
         }
     }
 }

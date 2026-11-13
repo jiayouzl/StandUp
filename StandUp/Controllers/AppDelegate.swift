@@ -3,34 +3,30 @@ import AppKit
 import ApplicationServices
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static var allowTerminate = false
+    private static var allowTerminate = false
 
-    private var menuBarManager: MenuBarManager!
-    private var autoStartTimer: Timer? // 必须保存引用，否则 ARC 会释放
+    private var menuBarManager: MenuBarManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         menuBarManager = MenuBarManager()
 
-        requestAccessibilityPermissionIfNeeded()
+        let timer = TimerManager.shared
+        timer.scheduleAutomaticStart()
 
-        // 启动后自动开始，便于当前产品流程直接进入工作计时
-        let timer = Timer(timeInterval: 2, repeats: false) { _ in
-            TimerManager.shared.start()
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        autoStartTimer = timer
-    }
-
-    private func requestAccessibilityPermissionIfNeeded() {
-        guard !AXIsProcessTrusted() else { return }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard !AXIsProcessTrusted() else { return }
-            self?.showAccessibilityPermissionAlert()
+        if timer.isAutoPauseEnabled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                Self.requestMediaPermissionIfNeeded()
+            }
         }
     }
 
-    private func showAccessibilityPermissionAlert() {
+    static func quit() {
+        allowTerminate = true
+        NSApp.terminate(nil)
+    }
+
+    static func requestMediaPermissionIfNeeded() {
+        guard TimerManager.shared.isAutoPauseEnabled, !AXIsProcessTrusted() else { return }
         NSApp.activate(ignoringOtherApps: true)
 
         let alert = NSAlert()
@@ -42,11 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
-        let options = [
-            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
-        ] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-
         guard let settingsURL = URL(
             string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         ) else { return }
@@ -55,6 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Self.allowTerminate ? .terminateNow : .terminateCancel
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        TimerManager.shared.prepareToTerminate()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

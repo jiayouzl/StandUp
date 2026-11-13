@@ -8,10 +8,11 @@ final class MenuBarManager: NSObject {
     private static let minimumPopoverHeight: CGFloat = 360
     private static let screenVerticalMargin: CGFloat = 24
 
-    private var statusItem: NSStatusItem!
+    private let statusItem: NSStatusItem
     private let popover: NSPopover
 
     override init() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         popover = NSPopover()
         popover.contentSize = NSSize(
             width: Self.popoverWidth,
@@ -21,11 +22,9 @@ final class MenuBarManager: NSObject {
 
         super.init()
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-
         if let button = statusItem.button {
             // 优先使用 SF Symbol，加载失败时用文字兜底
-            if let image = NSImage(systemSymbolName: "timer", accessibilityDescription: nil) {
+            if let image = NSImage(systemSymbolName: "timer", accessibilityDescription: "StandUp") {
                 button.image = image
             } else {
                 button.title = "⏱"
@@ -33,6 +32,7 @@ final class MenuBarManager: NSObject {
             }
             button.action = #selector(togglePopover)
             button.target = self
+            button.setAccessibilityLabel("StandUp")
         }
 
         popover.contentViewController = NSHostingController(rootView: ContentView())

@@ -2,27 +2,32 @@
 import Foundation
 
 struct AlarmItem: Identifiable, Codable {
-    var id: UUID
-    var time: Date
-    var reminderText: String
+    let id: UUID
+    let time: Date
+    let reminderText: String
 
-    init(id: UUID = UUID(), time: Date = Date(), reminderText: String = "") {
+    init(id: UUID = UUID(), time: Date, reminderText: String) {
         self.id = id
         self.time = time
         self.reminderText = reminderText
     }
 
     var formattedTime: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: time)
+        Self.timeFormatter.string(from: time)
     }
 
     var formattedDate: String {
+        Self.dateFormatter.string(from: time)
+    }
+
+    private static let timeFormatter = makeFormatter("HH:mm")
+    private static let dateFormatter = makeFormatter("M月d日 EEEE")
+
+    private static func makeFormatter(_ format: String) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日 EEEE"
-        return formatter.string(from: time)
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = format
+        return formatter
     }
 }
